@@ -277,12 +277,3 @@ class LinkAnnotation(object):
             for link in to_prune:
                 self.del_link(link)
             self._propagate_labels()
-
-
-if __name__ == '__main__':
-    link_annotation  = LinkAnnotation()
-    link_annotation.load('https://news.ycombinator.com')
-    link_annotation.mark_link('https://news.ycombinator.com/news?p=2')
-    link_annotation.load('https://news.ycombinator.com/news?p=2')
-    for link in link_annotation.best_links_to_follow():
-        print link
