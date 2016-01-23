@@ -36,17 +36,30 @@ def extract_all_links(page_or_url):
 class PointSpace(object):
     """Given a point will assign numeric IDs"""
     def __init__(self):
-        self.current_id = 0
-        self.points = {}
+        self.points = set()
+        self.point_to_id = {}
+        self._updated = True
+
+    def _update(self):
+        if self._updated:
+            return
+        current_id = 0
+        for point in self.points:
+            self.point_to_id[point] = current_id
+            current_id += 1
+        self._updated = True
 
     def add(self, point):
-        point_id = self.current_id
-        self.points[point] = self.current_id
-        self.current_id += 1
-        return point_id
+        self.points.add(point)
+        self._updated = False
+
+    def delete(self, point):
+        self.points.discard(point)
+        self._updated = False
 
     def get_id(self, point):
-        return self.points.get(point)
+        self._update()
+        return self.point_to_id.get(point)
 
 
 class OrderedPoint(object):
@@ -91,13 +104,23 @@ class Neighborhood(object):
         self.distance = distance_func
         self.k = k
 
-    def update(self, new_point):
+    def add_point(self, new_point):
         new_pair = OrderedPoint(new_point,
                                 self.distance(new_point, self.point))
         if len(self.near) == self.k:
             heapq.heappushpop(self.near, new_pair)
         else:
             heapq.heappush(self.near, new_pair)
+
+    def del_point(self, del_point):
+        update = False
+        for pair in self.near:
+            if pair.point == del_point:
+                update = True
+                break
+        if update:
+            self.near = heapify(
+                [pair for pair in self.near if pair.point != del_point])
 
     def __str__(self):
         return '{0} <- {1}'.format(self.point, self.near)
@@ -116,9 +139,17 @@ class KNNGraph(object):
         self.point_space.add(point)
         new_nb = Neighborhood(point, self.distance, k=self.k)
         for nb in self.graph:
-            nb.update(point)
-            new_nb.update(nb.point)
+            nb.add_point(point)
+            new_nb.add_point(nb.point)
         self.graph.append(new_nb)
+
+    def del_point(self, point):
+        if point not in self.point_space.points:
+            return
+        self.point_space.delete(point)
+        self.graph = [
+            nb.del_point(point)
+            for nb in self.graph if nb.point != point]
 
     def gaussian_kernel(self, sigma=1.0):
         n = len(self.graph)
@@ -224,6 +255,18 @@ class LinkAnnotation(object):
                     score = s1
                 follow_scores.append((score, link))
         return [link for _, link in sorted(follow_scores, reverse=True)]
+
+    def prune(self, max_links=400):
+        n_prune = len(self.links) - max_links
+        if n_prune > 0:
+            total_score = []
+            for link in self.links:
+                s1, s2 = self.link_scores(link)
+                total_score.append((s1 + s2, link))
+            to_prune = {link for _, link in sorted(total_score)[:n_prune]}
+            for point in to_prune:
+                self.del_point(point)
+            self._propagate_labels()
 
 
 if __name__ == '__main__':
