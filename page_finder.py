@@ -119,8 +119,8 @@ class Neighborhood(object):
                 update = True
                 break
         if update:
-            self.near = heapify(
-                [pair for pair in self.near if pair.point != del_point])
+            self.near = [pair for pair in self.near if pair.point != del_point]
+            heapq.heapify(self.near)
 
     def __str__(self):
         return '{0} <- {1}'.format(self.point, self.near)
@@ -147,9 +147,12 @@ class KNNGraph(object):
         if point not in self.point_space.points:
             return
         self.point_space.delete(point)
-        self.graph = [
-            nb.del_point(point)
-            for nb in self.graph if nb.point != point]
+        new_graph = []
+        for nb in self.graph:
+            if nb.point != point:
+                nb.del_point(point)
+                new_graph.append(nb)
+        self.graph = new_graph
 
     def gaussian_kernel(self, sigma=1.0):
         n = len(self.graph)
@@ -191,7 +194,7 @@ def label_propagation(kernel, labels, alpha=0.1, eps=1e-3):
 
 class LinkAnnotation(object):
     def __init__(self, k=5, alpha=0.95, sigma=1.0, eps=1e-3, min_score=None):
-        self.marked = []
+        self.marked = {}
         self.knn_graph = KNNGraph(levenshtein, k)
         self.alpha = alpha
         self.sigma = sigma
@@ -210,6 +213,13 @@ class LinkAnnotation(object):
     def add_link(self, link):
         self.knn_graph.add_point(link)
 
+    def del_link(self, link):
+        self.knn_graph.del_point(link)
+        try:
+            del self.marked[link]
+        except KeyError:
+            pass
+
     def load(self, page_or_url):
         for link in extract_all_links(page_or_url):
             self.add_link(link)
@@ -217,12 +227,12 @@ class LinkAnnotation(object):
 
     def mark_link(self, link, follow=True):
         self.add_link(link)
-        self.marked.append((link, follow))
+        self.marked[link] = follow
 
     def _propagate_labels(self):
         n = len(self.links)
         Y = np.zeros((n, 2))
-        for link, follow in self.marked:
+        for link, follow in self.marked.iteritems():
             link_id = self.knn_graph.point_space.get_id(link)
             Y[link_id, 0] = follow
             Y[link_id, 1] = not follow
@@ -264,8 +274,8 @@ class LinkAnnotation(object):
                 s1, s2 = self.link_scores(link)
                 total_score.append((s1 + s2, link))
             to_prune = {link for _, link in sorted(total_score)[:n_prune]}
-            for point in to_prune:
-                self.del_point(point)
+            for link in to_prune:
+                self.del_link(link)
             self._propagate_labels()
 
 

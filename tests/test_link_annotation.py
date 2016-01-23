@@ -26,6 +26,9 @@ def test_hnews():
 
     assert(best[0] == 'https://news.ycombinator.com/news?p=2')
     assert(best[1] == 'https://news.ycombinator.com/news?p=3')
-    
-    
-    
+
+    link_annotation.prune(100)
+    assert(len(link_annotation.links) <= 100)
+
+    assert(best[0] == 'https://news.ycombinator.com/news?p=2')
+    assert(best[1] == 'https://news.ycombinator.com/news?p=3')
