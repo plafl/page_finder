@@ -51,8 +51,8 @@ class IncorrectSelection(Exception):
 def link_menu(links):
     print '0) Quit'
     print '1) Enter link directly'
-    for i, link in enumerate(links):
-        print '{0}) {1}'.format(i + 2, link)
+    for i, (link, scores) in enumerate(links):
+        print '{0}) {1} (score={2})'.format(i + 2, link, scores[0])
     try:
         selection = int(raw_input('Select link to follow: '))
     except ValueError:
@@ -60,11 +60,11 @@ def link_menu(links):
     if selection == 0:
         return None
     elif selection == 1:
-        return link_prompt(links)
+        return link_prompt([link for link, _ in links])
     elif selection > len(links) + 2 or selection < 0:
         raise IncorrectSelection
     else:
-        return links[selection - 2]
+        return links[selection - 2][0]
 
 
 if __name__ == '__main__':
@@ -98,7 +98,9 @@ python demo.py start_url
         best = spider.best(5)
         while True:
             try:
-                link = link_menu(best)
+                link = link_menu([
+                    (link, spider.link_annotation.link_scores(link))
+                    for link in best])
                 break
             except IncorrectSelection:
                 print 'Incorrect selection. Try again'
