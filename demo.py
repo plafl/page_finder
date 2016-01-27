@@ -1,4 +1,5 @@
 import sys
+import readline
 
 import page_finder
 
@@ -27,25 +28,80 @@ class ManualSpider(object):
         return list(self.link_annotation.links)
 
 
+def make_completer(links):
+    def completer(text, state):
+        n = 0
+        for link in links:
+            if text in link:
+                if state == n:
+                    return link
+                n += 1
+    return completer
+
+
+def link_prompt(links):
+    readline.set_completer(make_completer(links))
+    return raw_input('Enter link to follow (tab autocompletes): ')
+
+
+class IncorrectSelection(Exception):
+    pass
+
+
 def link_menu(links):
     print '0) Quit'
+    print '1) Enter link directly'
     for i, link in enumerate(links):
-        print '{0}) {1}'.format(i + 1, link)
-    return int(raw_input('Select link to follow: '))
+        print '{0}) {1}'.format(i + 2, link)
+    try:
+        selection = int(raw_input('Select link to follow: '))
+    except ValueError:
+        raise IncorrectSelection
+    if selection == 0:
+        return None
+    elif selection == 1:
+        return link_prompt(links)
+    elif selection > len(links) + 2 or selection < 0:
+        raise IncorrectSelection
+    else:
+        return links[selection - 2]
 
 
 if __name__ == '__main__':
-    page = sys.argv[1]
+    USAGE =\
+"""
+python demo.py start_url
+"""
+    if len(sys.argv) != 2:
+        sys.exit(USAGE)
+    start_page = sys.argv[1]
+
+    readline_config = [
+        "tab: complete",
+        "set show-all-if-unmodified on",
+        "set skip-completed-text on",
+        "set completion-ignore-case on"
+    ]
+    for line in readline_config:
+        readline.parse_and_bind(line)
+    readline.set_completer_delims('')
+
     spider = ManualSpider()
-    spider.visit(page, start=True)
-    all_links = spider.get_all_links()
-    selection = link_menu(all_links)
-    if selection == 0:
+    spider.visit(start_page, start=True)
+
+    link = link_prompt(spider.get_all_links())
+    if not link:
         sys.exit()
-    spider.visit(all_links[selection - 1])
+    spider.visit(link)
+
     while True:
-        best = spider.best(3)
-        selection = link_menu(best)
-        if selection == 0:
+        best = spider.best(5)
+        while True:
+            try:
+                link = link_menu(best)
+                break
+            except IncorrectSelection:
+                print 'Incorrect selection. Try again'
+        if not link:
             sys.exit()
-        spider.visit(best[selection - 1])
+        spider.visit(link)
